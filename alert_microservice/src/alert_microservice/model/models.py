@@ -1,0 +1,1 @@
+from alert_microservice.model.alert_model import Alert
