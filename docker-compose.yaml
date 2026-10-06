@@ -30,6 +30,7 @@ services:
   alerts-app:
     build: ./alert_microservice
     container_name: alerts_container
+    restart: always
     env_file:
       - ./alert_microservice/.env
     environment:
@@ -71,6 +72,7 @@ services:
   assets-app:
     build: ./asset_microservice
     container_name: assets_container
+    restart: always
     env_file:
       - ./asset_microservice/.env
     environment:
@@ -98,6 +100,7 @@ services:
   users-app:
     build: ./user_microservice
     container_name: users_container
+    restart: always
     env_file:
       - ./user_microservice/.env
     environment:
