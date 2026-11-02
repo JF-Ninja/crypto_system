@@ -1,17 +1,12 @@
 from datetime import datetime, timedelta, timezone
 import jwt
 import uuid
-from fastapi import HTTPException, status
 from jwt.exceptions import InvalidTokenError
 
+from user_microservice.business_errors import TokenInvalidError, TokenTypeMismatchError, UserDeactivatedError, \
+    TokenNotFoundError
 from user_microservice.config import jwt_config
 from user_microservice.interfaces import AbstractSecurityClass, AbstractUserClass, AbstractRedisClass
-
-credentials_exception = HTTPException(
-    status_code=status.HTTP_401_UNAUTHORIZED,
-    detail="Could not validate credentials",
-    headers={"WWW-Authenticate": "Bearer"},
-)
 
 
 def _get_private_key() -> str:
@@ -34,12 +29,14 @@ class JWTAuthService(AbstractSecurityClass):
             token_data = int(payload.get("sub"))
             token_type = payload.get("type")
             if token_type != "access":
-                raise credentials_exception
-        except jwt.InvalidTokenError:
-            raise credentials_exception
+                raise TokenTypeMismatchError()
+        except TokenTypeMismatchError:
+            raise
+        except (InvalidTokenError, TypeError, ValueError):
+            raise TokenInvalidError()
         user = await self.user_repository.find_active_user(id=token_data)
         if user is None:
-            raise credentials_exception
+            raise UserDeactivatedError()
         return user
 
     async def set_auth_tokens(self, data: int, expires_access_delta: timedelta | None = None,
@@ -52,11 +49,7 @@ class JWTAuthService(AbstractSecurityClass):
             await self.redis_repository.set_pairs(ttl=expires_refresh_delta, **{key_name: refresh_token})
         else:
             await self.redis_repository.set_pairs(ttl=jwt_config.refresh_token_expire_days * 86400, **{key_name: refresh_token} )
-        return {
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "token_type": "bearer",
-        }
+        return {"access_token": access_token,"refresh_token": refresh_token,"token_type": "bearer",}
 
     @staticmethod
     def create_access_token(data: str, jti_uuid: str, expires_delta: timedelta | None = None):
@@ -80,17 +73,19 @@ class JWTAuthService(AbstractSecurityClass):
         try:
             payload = jwt.decode(token, _get_public_key(), algorithms=[jwt_config.algorithm])
             if payload.get("type") != "refresh":
-                raise credentials_exception
+                raise TokenTypeMismatchError()
             token_uuid = payload.get("jti")
             token_data = int(payload.get("sub"))
             user = await self.user_repository.find_active_user(id=token_data)
             if not user:
-                raise HTTPException(status_code=403, detail="User account is deactivated")
+                raise UserDeactivatedError()
             key_name = f"auth:refresh:{user.id}:{token_uuid}"
             redis_uuid = await self.redis_repository.get_pairs(f"{key_name}")
             if not redis_uuid.get(f"{key_name}"):
-                raise credentials_exception
+                raise TokenNotFoundError()
             await self.redis_repository.delete_pairs(f"{key_name}")
             return await self.set_auth_tokens(token_data)
-        except InvalidTokenError:
-            raise credentials_exception
+        except (TokenTypeMismatchError, UserDeactivatedError, TokenNotFoundError):
+            raise
+        except (InvalidTokenError, TypeError, ValueError):
+            raise TokenInvalidError()

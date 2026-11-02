@@ -2,7 +2,6 @@ import json
 
 import httpx
 from aio_pika import Message
-from fastapi import HTTPException
 
 from alert_microservice.interfaces import AbstractRedisClass, AbstractAlertClass
 from alert_microservice.logger import logger
@@ -59,17 +58,21 @@ class RabbitMQConsumer:
                             actual_alert = await self.alert_repo.find_one_or_none(id=alert_id, is_triggered=False)
                             if actual_alert:
                                 await self.alert_repo.update(filter_by={"id":alert_id}, values={"is_triggered": True})
-                                async with httpx.AsyncClient() as client:
+                                async with httpx.AsyncClient(timeout=5.0) as client:
                                     try:
-                                        response = await client.post("http://users-app:8000/internal/users/get_user", params={"user_id": actual_alert.user_id})
-                                    except httpx.RequestError:
-                                        raise HTTPException(status_code=503, detail="User service is unavailable")
+                                        response = await client.post("http://users-app:8000/internal/users/get_user",params={"user_id": actual_alert.user_id},)
+                                        response.raise_for_status()
+                                    except httpx.HTTPError as exc:
+                                        logger.exception(f"User service unavailable while activating alert {alert_id}: {repr(exc)}")
+                                        continue
                                 user_info = response.json()
                                 logger.info(f"FULL USER INFO: {user_info}")
                                 user_email = user_info.get("email")
+                                if not user_email:
+                                    logger.warning(f"Alert {alert_id}: user {actual_alert.user_id} has no email, skip send")
+                                    continue
                                 logger.info(user_email)
                                 await email_sender(user_email, actual_alert.ticker_name, actual_alert.target_price)
-                                await self.alert_repo.save_changes()
                         except Exception as inner_e:
                             logger.exception(f"Error processing a single message: {repr(inner_e)}")
         except Exception as e:

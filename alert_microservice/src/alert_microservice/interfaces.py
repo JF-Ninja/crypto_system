@@ -3,14 +3,6 @@ from abc import ABC, abstractmethod
 class AbstractRepository(ABC):
 
     @abstractmethod
-    async def rollback_changes(self):
-        pass
-
-    @abstractmethod
-    async def save_changes(self):
-        pass
-
-    @abstractmethod
     async def add(self, info):
         pass
 
@@ -61,4 +53,11 @@ class AbstractSecurityClass(ABC):
     @staticmethod
     @abstractmethod
     def get_current_user_id(token: str):
+        pass
+
+
+class AbstractExternalClient(ABC):
+
+    @abstractmethod
+    async def send_request(self, method: str, url: str, **kwargs) -> dict:
         pass

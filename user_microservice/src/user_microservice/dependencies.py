@@ -16,7 +16,12 @@ security_schema = HTTPBearer()
 
 async def get_db_connection():
     async with async_session_maker() as session:
-        yield session
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
 
 async def get_redis_connection():
         yield r

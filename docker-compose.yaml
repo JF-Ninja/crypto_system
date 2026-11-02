@@ -26,6 +26,11 @@ services:
       - rabbitmq-data:/var/lib/rabbitmq
     networks:
       - main_network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
 
   alerts-app:
     build: ./alert_microservice
@@ -38,9 +43,14 @@ services:
     networks:
       - main_network
     depends_on:
-      - alerts-db
-      - alerts-redis
-      - rabbitmq
+      alerts-db:
+        condition: service_started
+      alerts-redis:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - ./alert_microservice/logs:/app/logs
 
   alerts-db:
     image: postgres:16-alpine
@@ -80,8 +90,12 @@ services:
     networks:
       - main_network
     depends_on:
-      - assets-redis
-      - rabbitmq
+      assets-redis:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - ./asset_microservice/logs:/app/logs
 
   assets-redis:
     image: redis:7-alpine
@@ -110,6 +124,8 @@ services:
     depends_on:
       - users-db
       - users-redis
+    volumes:
+      - ./user_microservice/logs:/app/logs
 
   users-db:
     image: postgres:16-alpine
@@ -138,6 +154,44 @@ services:
     networks:
       - main_network
 
+  loki:
+    image: grafana/loki:3.0.0
+    container_name: loki_container
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - main_network
+
+  alloy:
+    image: grafana/alloy:latest
+    container_name: alloy_container
+    volumes:
+      - ./infra/alloy-config.alloy:/etc/alloy/config.alloy:ro
+      - ./user_microservice/logs:/var/log/app/user_microservice:ro
+      - ./asset_microservice/logs:/var/log/app/asset_microservice:ro
+      - ./alert_microservice/logs:/var/log/app/alert_microservice:ro
+    command: run --storage.path=/tmp/alloy-pipelines /etc/alloy/config.alloy
+    networks:
+      - main_network
+    depends_on:
+      - loki
+    restart: always
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana_container
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - ./infra/grafana-datasource.yaml:/etc/grafana/provisioning/datasources/datasource.yaml:ro
+    networks:
+      - main_network
+    depends_on:
+      - loki
+
 volumes:
   rabbitmq-data:
   alerts-postgres-data:
@@ -145,6 +199,7 @@ volumes:
   assets-redis-data:
   users-postgres-data:
   users-redis-data:
+  users-logs-volume:
 
 networks:
   main_network:

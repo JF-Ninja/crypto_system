@@ -4,14 +4,6 @@ from abc import ABC, abstractmethod
 class AbstractRepository(ABC):
 
     @abstractmethod
-    async def rollback_changes(self):
-        pass
-
-    @abstractmethod
-    async def save_changes(self):
-        pass
-
-    @abstractmethod
     async def add(self, info):
         pass
 

@@ -7,12 +7,6 @@ class MainRepository:
         self.db = db
         self.model = model
 
-    async def save_changes(self):
-        await self.db.commit()
-
-    async def rollback_changes(self):
-        await self.db.rollback()
-
     async def add(self, info):
         obj = self.model(**info)
         self.db.add(obj)

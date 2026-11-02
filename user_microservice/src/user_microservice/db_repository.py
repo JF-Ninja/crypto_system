@@ -1,4 +1,4 @@
-from sqlalchemy import select, update, delete
+from sqlalchemy import delete, select, update
 
 
 class MainRepository:
@@ -6,12 +6,6 @@ class MainRepository:
     def __init__(self, db, model):
         self.db = db
         self.model = model
-
-    async def save_changes(self):
-        await self.db.commit()
-
-    async def rollback_changes(self):
-        await self.db.rollback()
 
     async def add(self, info):
         obj = self.model(**info)

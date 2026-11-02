@@ -1,12 +1,25 @@
+from contextlib import asynccontextmanager
+from collections.abc import AsyncIterator
+
 from fastapi import FastAPI
-from user_microservice.api.user_api import external_router as user_external_router
-from user_microservice.api.user_api import internal_router  as user_internal_router
-from user_microservice.api.auth_api import internal_router  as auth_internal_router
-from user_microservice.api.auth_api import external_router  as auth_external_router
 
-app = FastAPI(root_path="/api/v1/users")
+from user_microservice.logger import logger
 
-app.include_router(user_external_router)
-app.include_router(user_internal_router)
-app.include_router(auth_internal_router)
-app.include_router(auth_external_router)
+from user_microservice.exception_handlers import register_exception_handlers
+from user_microservice.middleware import register_middleware
+from user_microservice.router import register_routers
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    logger.info("User microservice starting")
+    yield
+    logger.info("User microservice stopping")
+    await logger.complete()
+
+
+app = FastAPI(root_path="/api/v1/users", lifespan=lifespan)
+
+register_middleware(app)
+register_exception_handlers(app)
+register_routers(app)

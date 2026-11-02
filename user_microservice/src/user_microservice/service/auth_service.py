@@ -1,5 +1,4 @@
-from fastapi import HTTPException
-
+from user_microservice.business_errors import InvalidCredentialsError
 from user_microservice.interfaces import AbstractSecurityClass
 from user_microservice.schema.user_schema import SUserRegister
 from user_microservice.service.user_service import UserService
@@ -17,7 +16,7 @@ class AuthService:
     async def login(self, user_data: SUserRegister):
         user = await self.user_service.authenticate_user(user_data.email, user_data.password)
         if not user:
-            raise HTTPException(status_code=401, detail="Invalid email or password")
+            raise InvalidCredentialsError()
         return await self.security.set_auth_tokens(user.id)
 
     async def refresh_token(self, token: str):

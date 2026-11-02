@@ -1,0 +1,29 @@
+local.file_match "app_logs" {
+  path_targets = [{"__address__" = "localhost", "__path__" = "/var/log/app/**/*.log"}]
+}
+
+loki.source.file "log_scanner" {
+  targets    = local.file_match.app_logs.targets
+  forward_to = [loki.process.extract_service_name.receiver]
+}
+
+loki.process "extract_service_name" {
+  stage.regex {
+    expression = "/var/log/app/(?P<extracted_name>[^/]+)/"
+    source     = "filename"
+  }
+
+  stage.labels {
+    values = {
+      service = "extracted_name",
+    }
+  }
+
+  forward_to = [loki.write.loki_receiver.receiver]
+}
+
+loki.write "loki_receiver" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

@@ -11,4 +11,4 @@ class UserIsActive(BaseModel):
     is_active: bool
 
 class SUserUpdate(BaseModel):
-    password: str | None
+    password: str | None = None
