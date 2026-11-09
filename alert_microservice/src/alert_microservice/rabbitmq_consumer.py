@@ -1,20 +1,24 @@
+import asyncio
 import json
+from typing import Type
 
 import httpx
 from aio_pika import Message
 
+from alert_microservice.business_errors import ExternalServiceUnavailableError
 from alert_microservice.interfaces import AbstractRedisClass, AbstractAlertClass
 from alert_microservice.logger import logger
 from alert_microservice.smtplib_sender import email_sender
 
 
 class RabbitMQConsumer:
-    def __init__(self, redis: AbstractRedisClass, crypto_q, trigger_q, trigger_ex, alert_repo: AbstractAlertClass):
+    def __init__(self, redis: AbstractRedisClass, crypto_q, trigger_q, trigger_ex, db_session_factory, alert_repo_factory: Type[AbstractAlertClass]):
         self.redis = redis
         self.crypto_q = crypto_q
         self.trigger_q = trigger_q
         self.trigger_ex = trigger_ex
-        self.alert_repo = alert_repo
+        self.db_session_factory = db_session_factory
+        self.alert_repo_factory = alert_repo_factory
 
     async def monitoring_alerts(self):
         try:
@@ -50,30 +54,36 @@ class RabbitMQConsumer:
         try:
             async with self.trigger_q.iterator() as q:
                 async for message in q:
-                    async with message.process():
-                        try:
+                    try:
+                        async with self.db_session_factory() as session:
+                            alert_repo = self.alert_repo_factory(session)
                             actual_message = json.loads(message.body.decode('utf-8'))
                             logger.info(actual_message)
                             alert_id = actual_message["alert_id"]
-                            actual_alert = await self.alert_repo.find_one_or_none(id=alert_id, is_triggered=False)
+                            actual_alert = await alert_repo.find_one_or_none(id=alert_id, is_triggered=False)
                             if actual_alert:
-                                await self.alert_repo.update(filter_by={"id":alert_id}, values={"is_triggered": True})
+                                await alert_repo.update(filter_by={"id":alert_id}, values={"is_triggered": True})
                                 async with httpx.AsyncClient(timeout=5.0) as client:
                                     try:
                                         response = await client.post("http://users-app:8000/internal/users/get_user",params={"user_id": actual_alert.user_id},)
                                         response.raise_for_status()
                                     except httpx.HTTPError as exc:
                                         logger.exception(f"User service unavailable while activating alert {alert_id}: {repr(exc)}")
-                                        continue
+                                        raise
+
                                 user_info = response.json()
-                                logger.info(f"FULL USER INFO: {user_info}")
                                 user_email = user_info.get("email")
                                 if not user_email:
                                     logger.warning(f"Alert {alert_id}: user {actual_alert.user_id} has no email, skip send")
                                     continue
                                 logger.info(user_email)
                                 await email_sender(user_email, actual_alert.ticker_name, actual_alert.target_price)
-                        except Exception as inner_e:
-                            logger.exception(f"Error processing a single message: {repr(inner_e)}")
+                                await message.ack()
+                    except Exception as inner_e:
+                        logger.error(f"Message processing failed, message returned to queue. Error: {repr(inner_e)}")
+                        await message.nack(requeue=True)
+                        await asyncio.sleep(5)
+                        continue
+
         except Exception as e:
             logger.exception(f"Critical listener error: {repr(e)}")

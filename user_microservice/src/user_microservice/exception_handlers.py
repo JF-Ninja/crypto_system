@@ -20,15 +20,7 @@ UNIQUE_VIOLATION_SQLSTATE = "23505"
 _AUTH_HEADER = {"WWW-Authenticate": "Bearer"}
 
 
-def _error_response(
-    request: Request,
-    status_code: int,
-    detail: str,
-    *,
-    reason: str,
-    headers: dict[str, str] | None = None,
-    **extra,
-) -> JSONResponse:
+def _error_response(request: Request,status_code: int,detail: str,*,reason: str,headers: dict[str, str] | None = None,**extra) -> JSONResponse:
     if not getattr(request.state, "log_reason", None):
         request.state.log_reason = reason
     body = {"detail": detail, **extra, "request_id": getattr(request.state, "request_id", "unknown")}

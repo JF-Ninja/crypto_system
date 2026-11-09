@@ -22,23 +22,21 @@ async def lifespan(app: FastAPI):
         logger.info("RabbitMQ successfully connected")
         redis_cm = asynccontextmanager(get_redis_connection)
         postgre_cm = asynccontextmanager(get_db_connection)
-        async with postgre_cm() as real_postgre_client:
-            async with redis_cm() as real_redis_client:
-                logger.info("Db and Redis successfully connected")
-                redis_rep = RedisRepository(real_redis_client)
-                alert_rep = AlertRepository(real_postgre_client)
-                rabbitmq_consumer = RabbitMQConsumer(redis_rep, queue["crypto_q"], queue["trigger_q"], queue["trigger_ex"], alert_rep)
-                task1 = asyncio.create_task(rabbitmq_consumer.monitoring_alerts())
-                task2 = asyncio.create_task(rabbitmq_consumer.activating_alerts())
-                logger.info("RabbitMQ tasks created")
-                yield
-                task1.cancel()
-                task2.cancel()
-                for task in (task1, task2):
-                    try:
-                        await task
-                    except asyncio.CancelledError:
-                        pass
+        async with redis_cm() as real_redis_client:
+            logger.info("Db and Redis successfully connected")
+            redis_rep = RedisRepository(real_redis_client)
+            rabbitmq_consumer = RabbitMQConsumer(redis_rep, queue["crypto_q"], queue["trigger_q"], queue["trigger_ex"],postgre_cm, AlertRepository)
+            task1 = asyncio.create_task(rabbitmq_consumer.monitoring_alerts())
+            task2 = asyncio.create_task(rabbitmq_consumer.activating_alerts())
+            logger.info("RabbitMQ tasks created")
+            yield
+            task1.cancel()
+            task2.cancel()
+            for task in (task1, task2):
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
     await logger.complete()
 
 
