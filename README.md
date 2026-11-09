@@ -41,6 +41,7 @@ crypto_system/
 ├── assets_microservice/
 ├── infra/
 ├── users_microservice/
+│   └── generate_keys.py
 ├── docker-compose.yaml
 └── README.md
 ```
@@ -59,14 +60,25 @@ cd crypto_system
 ```bash
 uv sync
 ```
+Создайте файлы `.env` внутри директорий микросервисов на основе шаблонов `.env.example`. 
 
-### 4. Запустить миграции базы данных
+### 4. Сгенерировать асимметричные ключи JWT (RS256)
+Для работы аутентификации в `user_microservice` необходимо локально создать пару ключей (приватный и публичный). 
+
+Запустите скрипт автоматической генерации:
+```bash
+cd user_microservice
+uv run generate_keys.py
+cd ..
+```
+
+### 5. Запустить миграции базы данных
 ```bash
 docker compose run --rm users-app uv run alembic upgrade head
 docker compose run --rm alerts-app uv run alembic upgrade head
 ```
 
-### 5. Запустить сервер разработки FastAPI
+### 6. Запустить сервер разработки FastAPI
 ```bash
 docker compose up -d --build 
 ```
