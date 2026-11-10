@@ -1,39 +1,39 @@
-Микросервисная платформа для асинхронного мониторинга цен криптовалют/акций, анализа рынка и мгновенной рассылки уведомлений пользователям.
+A microservice platform for asynchronous cryptocurrency and stock price monitoring, market analysis, and instant user notifications.
 
-Система разделена на независимые модули (микросервисы), которые общаются друг с другом через брокер сообщений и http:
+The system is divided into independent modules (microservices) that communicate with each other via a message broker and HTTP:
 
- **Основа:** 
-   NginX сервер с подключением RabbiMQ, основная настройка всей системы для общего запуска.
-1. **Микросервис №1 (Users):** 
-   Отвечает за регистрацию, управление данными пользователя, аунтефикацию.
-2. **Микросервис №2 (Assets):**
-   Подключение к внешней API и парсинг актуальных данных добавленных тикеров, передаёт данные в шину данных RabbitMQ.
-3. **Микросервис №3 (Alerts):**
-   Получается сообщения из RabbitMQ и создаёт фоновую задачу по отслеживанию цены и отправки уведомления пользователю на почту.
-4. **БД, Кэш-слой и Брокер:**
-   Основные базы данных (users, alerts) - postgresql
-   Кэш (users, assets, alerts) - redis
-   Брокер сообщений - RabbitMQ
-5. **Мониторинг и Логирование:**
-   Централизованный отлов и типизация бизнес/системных ошибок.  Сбор логов и метрик с визуализацией в Grafana.
-
-
-
-**Стек технологий**
-
-* **Язык:** Python 3.12+
-* **Фреймворк:** FastAPI 
-* **Асинхронность:** Asyncio, httpx, aio-pika
-* **База данных:** PostgreSQL
-* **ORM & Миграции:** SQLAlchemy 2.0, Alembic
-* **Кэширование & Очереди:** Redis, RabbitMQ 
-* **Контейнеризация:** Docker, Docker Compose
-* **Наблюдаемость (Observability):** Grafana
-* **Контроль версий:** Git
+* **Core Infrastructure:** 
+  Nginx server integrated with RabbitMQ, along with the main system configuration for unified deployment.
+1. **Microservice #1 (Users):** 
+   Handles user registration, profile management, and authentication.
+2. **Microservice #2 (Assets):** 
+   Connects to external APIs, parses real-time data for tracked tickers, and publishes updates to the RabbitMQ data bus.
+3. **Microservice #3 (Alerts):** 
+   Consumes messages from RabbitMQ and creates background tasks to track target prices and send email notifications to users.
+4. **Database, Cache & Message Broker:**
+   * Primary databases (`users`, `alerts`) — PostgreSQL
+   * Cache (`users`, `assets`, `alerts`) — Redis
+   * Message broker — RabbitMQ
+5. **Monitoring & Logging:**
+   Centralized catching and typing of business/system errors. Log and metric collection with visualization in Grafana.
 
 ---
 
-## Структура проекта (Текущий этап)
+## Tech Stack
+
+* **Language:** Python 3.12+
+* **Framework:** FastAPI 
+* **Concurrency:** Asyncio, httpx, aio-pika
+* **Database:** PostgreSQL
+* **ORM & Migrations:** SQLAlchemy 2.0, Alembic
+* **Caching & Queues:** Redis, RabbitMQ 
+* **Containerization:** Docker, Docker Compose
+* **Observability:** Grafana
+* **Version Control:** Git
+
+---
+
+## Project Structure (Current Stage)
 
 ```text
 crypto_system/
@@ -48,37 +48,37 @@ crypto_system/
 
 ---
 
-## Как запустить 
+## How to Run
 
-### 1. Клонировать репозиторий
+### 1. Clone the repository
 ```bash
 git clone https://github.com/JF-Ninja/crypto_system.git
 cd crypto_system
 ```
 
-### 3. Установить зависимости
+### 2. Install dependencies
 ```bash
 uv sync
 ```
-Создайте файлы `.env` внутри директорий микросервисов на основе шаблонов `.env.example`. 
+Create `.env` files inside the microservice directories based on the `.env.example` templates.
 
-### 4. Сгенерировать асимметричные ключи JWT (RS256)
-Для работы аутентификации в `user_microservice` необходимо локально создать пару ключей (приватный и публичный). 
+### 3. Generate asymmetric JWT keys (RS256)
+To enable authentication in `user_microservice`, you need to generate a local key pair (private and public).
 
-Запустите скрипт автоматической генерации:
+Run the automatic generation script:
 ```bash
 cd user_microservice
 uv run generate_keys.py
 cd ..
 ```
 
-### 5. Запустить миграции базы данных
+### 4. Run database migrations
 ```bash
 docker compose run --rm users-app uv run alembic upgrade head
 docker compose run --rm alerts-app uv run alembic upgrade head
 ```
 
-### 6. Запустить сервер разработки FastAPI
+### 5. Start the FastAPI development server
 ```bash
-docker compose up -d --build 
+docker compose up -d --build
 ```
